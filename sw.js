@@ -1,4 +1,4 @@
-const CACHE_NAME = 'interest-calculator-v1';
+const CACHE_NAME = 'interest-calculator-v2';
 const ASSETS = [
   './',
   './interest_calculator.html',

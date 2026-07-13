@@ -44,8 +44,44 @@
       box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
       padding: 24px;
     }
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .hero h2 { margin: 0; color: var(--primary); font-size: 28px; }
+    .hero-subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .hero-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .install-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, #0ea5a4 100%);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(15, 118, 110, 0.22);
+    }
+    .install-btn:hover { transform: translateY(-1px); }
+    .install-status {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      max-width: 240px;
+    }
     h2, h3 { margin: 8px 0 10px; }
-    h2 { color: var(--primary); font-size: 28px; }
     h3 { color: var(--primary-dark); border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
     table {
       border-collapse: collapse;
@@ -62,17 +98,20 @@
       font-size: 14px;
       vertical-align: middle;
     }
-    th:nth-child(1), td:nth-child(1),
+    th:nth-child(1), td:nth-child(1) {
+      min-width: 150px;
+      width: 26%;
+    }
     th:nth-child(2), td:nth-child(2) {
-      min-width: 120px;
-      width: 22%;
+      min-width: 150px;
+      width: 24%;
     }
     th:nth-child(3), td:nth-child(3),
     th:nth-child(4), td:nth-child(4),
     th:nth-child(5), td:nth-child(5),
     th:nth-child(6), td:nth-child(6) {
-      min-width: 90px;
-      width: 13%;
+      min-width: 96px;
+      width: 12%;
     }
     th {
       background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
@@ -151,18 +190,23 @@
       .app-shell { padding: 16px; }
       table { font-size: 12px; display: table; table-layout: fixed; }
       th, td { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      th:nth-child(1), td:nth-child(1),
+      th:nth-child(1), td:nth-child(1) {
+        min-width: 164px;
+        width: 34%;
+      }
       th:nth-child(2), td:nth-child(2) {
-        min-width: 132px;
-        width: 28%;
+        min-width: 156px;
+        width: 30%;
       }
       th:nth-child(3), td:nth-child(3),
       th:nth-child(4), td:nth-child(4),
       th:nth-child(5), td:nth-child(5),
       th:nth-child(6), td:nth-child(6) {
-        min-width: 78px;
+        min-width: 82px;
         width: 12%;
       }
+      .hero-actions { align-items: flex-start; width: 100%; }
+      .install-status { text-align: left; max-width: none; }
       button { width: 100%; }
       .controls { flex-direction: column; }
     }
@@ -170,7 +214,16 @@
 </head>
 <body>
   <div class="app-shell">
-  <h2>Interest Calculator</h2>
+  <div class="hero">
+    <div>
+      <h2>Interest Calculator</h2>
+      <p class="hero-subtitle">Track interest, payments, and balances with a simple mobile-friendly workflow.</p>
+    </div>
+    <div class="hero-actions">
+      <button id="installButton" class="install-btn" onclick="promptInstall()">Install App</button>
+      <div id="installStatus" class="install-status">Add this app to your home screen for faster access.</div>
+    </div>
+  </div>
 
   <div class="top-row">
     <div>
@@ -262,6 +315,54 @@
   </div>
 
   <script>
+    let deferredPrompt = null;
+
+    function updateInstallStatus(message) {
+      const statusEl = document.getElementById('installStatus');
+      if (statusEl) statusEl.textContent = message;
+    }
+
+    async function promptInstall() {
+      const installBtn = document.getElementById('installButton');
+      if (!deferredPrompt) {
+        updateInstallStatus('Your browser does not support automatic install. Use the browser menu and choose Add to Home Screen.');
+        return;
+      }
+
+      try {
+        deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          updateInstallStatus('Install prompt accepted.');
+          if (installBtn) {
+            installBtn.textContent = 'Installed';
+            installBtn.disabled = true;
+          }
+        } else {
+          updateInstallStatus('Install canceled.');
+        }
+        deferredPrompt = null;
+      } catch (err) {
+        console.error('Install prompt failed:', err);
+        updateInstallStatus('Install was not available right now. Try again from your browser menu.');
+      }
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredPrompt = event;
+      updateInstallStatus('Tap Install App to add this calculator to your home screen.');
+    });
+
+    window.addEventListener('appinstalled', () => {
+      const installBtn = document.getElementById('installButton');
+      if (installBtn) {
+        installBtn.textContent = 'Installed';
+        installBtn.disabled = true;
+      }
+      updateInstallStatus('App installed successfully.');
+    });
+
     function addPdfTable(doc, headers, rows, startY, columnWidths) {
       const left = 30;
       const rowHeight = 14;
