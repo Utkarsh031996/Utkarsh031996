@@ -16,25 +16,160 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; color:#222; }
-    h2, h3 { margin: 8px 0; }
-    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size:14px; }
-    th { background:#f6f6f6; }
-    input[type="text"], input[type="number"], input[type="date"] {
-      width: 100%; box-sizing: border-box; padding:6px; font-size:14px;
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --accent: #0f766e;
+      --bg: #f4f7ff;
+      --surface: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --border: #dbeafe;
     }
-    .controls { margin-top: 12px; }
-    button { margin:6px 6px 6px 0; padding:8px 12px; font-size:14px; cursor:pointer; }
-    #summary { margin-top:12px; padding:10px; background:#fafafa; border:1px solid #eee; }
-    .small { font-size:13px; color:#555; }
-    .top-row { display:flex; gap:12px; align-items:center; margin-bottom:8px; }
-    .top-row > * { flex: 1; }
-    .radio-group { display:flex; gap:12px; align-items:center; }
-    .note { font-size:12px; color:#666; margin-top:6px; }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: var(--text);
+      background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+      line-height: 1.5;
+    }
+    .app-shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+      padding: 24px;
+    }
+    h2, h3 { margin: 8px 0 10px; }
+    h2 { color: var(--primary); font-size: 28px; }
+    h3 { color: var(--primary-dark); border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 12px;
+      background: #fff;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 8px;
+      text-align: center;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+    th:nth-child(1), td:nth-child(1),
+    th:nth-child(2), td:nth-child(2) {
+      min-width: 120px;
+      width: 22%;
+    }
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(5), td:nth-child(5),
+    th:nth-child(6), td:nth-child(6) {
+      min-width: 90px;
+      width: 13%;
+    }
+    th {
+      background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+      color: #1e3a8a;
+      font-weight: 700;
+    }
+    input[type="text"], input[type="number"], input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    .controls {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    button {
+      margin: 0;
+      padding: 9px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      border-radius: 999px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(37, 99, 235, 0.25); }
+    #summary {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: #334155;
+    }
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+      background: #f8fafc;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    .top-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .top-row > div {
+      flex: 1;
+      min-width: 280px;
+      background: #f8fbff;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .radio-group { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .note { font-size:12px; color:#64748b; margin-top:6px; }
+
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      .app-shell { padding: 16px; }
+      table { font-size: 12px; display: table; table-layout: fixed; }
+      th, td { padding: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      th:nth-child(1), td:nth-child(1),
+      th:nth-child(2), td:nth-child(2) {
+        min-width: 132px;
+        width: 28%;
+      }
+      th:nth-child(3), td:nth-child(3),
+      th:nth-child(4), td:nth-child(4),
+      th:nth-child(5), td:nth-child(5),
+      th:nth-child(6), td:nth-child(6) {
+        min-width: 78px;
+        width: 12%;
+      }
+      button { width: 100%; }
+      .controls { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
+  <div class="app-shell">
   <h2>Interest Calculator</h2>
 
   <div class="top-row">
@@ -127,6 +262,45 @@
   </div>
 
   <script>
+    function addPdfTable(doc, headers, rows, startY, columnWidths) {
+      const left = 30;
+      const rowHeight = 14;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let y = startY;
+      const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+
+      function drawRow(values, isHeader) {
+        if (y + rowHeight > pageHeight - 24) {
+          doc.addPage();
+          y = 40;
+        }
+
+        let x = left;
+        values.forEach((value, index) => {
+          const width = columnWidths[index];
+          if (isHeader) {
+            doc.setFillColor(37, 99, 235);
+            doc.setTextColor(255, 255, 255);
+            doc.rect(x, y, width, rowHeight, 'F');
+          } else {
+            doc.setFillColor(255, 255, 255);
+            doc.setTextColor(0, 0, 0);
+            doc.rect(x, y, width, rowHeight, 'S');
+          }
+
+          const text = String(value ?? '');
+          const lines = doc.splitTextToSize(text, width - 6);
+          doc.text(lines, x + 3, y + 8);
+          x += width;
+        });
+        y += rowHeight;
+      }
+
+      drawRow(headers, true);
+      rows.forEach(row => drawRow(row, false));
+      return y;
+    }
+
     // Initialize calcDate input to today
     (function init() {
       const today = new Date();
@@ -396,8 +570,9 @@
         }
 
         doc.setFontSize(12);
-        addTextLines(['Main Amounts:']);
-        doc.setFontSize(10);
+        doc.text('Main Amounts', left, y);
+        y += 16;
+        doc.setFontSize(9);
         const mainRows = [];
         document.querySelectorAll('#dataTable tbody tr').forEach(row => {
           const amount = row.cells[0].querySelector('input').value || '';
@@ -407,13 +582,19 @@
           const daily = row.cells[4].innerText || '';
           const totalInt = row.cells[5].innerText || '';
           if (!amount && !date) return;
-          mainRows.push(`${amount} | ${date} | Days:${days} | Adj:${adj} | Daily:${daily} | Int:${totalInt}`);
+          mainRows.push([amount, date, days, adj, daily, totalInt]);
         });
-        if (mainRows.length === 0) addTextLines(['No main amounts entered.']); else addTextLines(mainRows);
+        if (mainRows.length === 0) {
+          doc.text('No main amounts entered.', left, y);
+          y += 16;
+        } else {
+          y = addPdfTable(doc, ['Amount', 'Date', 'Days', 'Adj. Days', 'Daily', 'Total Int.'], mainRows, y, [42, 62, 30, 30, 36, 38]);
+        }
 
         doc.setFontSize(12);
-        addTextLines(['', 'Received Payments:']);
-        doc.setFontSize(10);
+        doc.text('Received Payments', left, y + 6);
+        y += 24;
+        doc.setFontSize(9);
         const payRows = [];
         document.querySelectorAll('#paymentTable tbody tr').forEach(row => {
           const amount = row.cells[0].querySelector('input').value || '';
@@ -422,9 +603,13 @@
           const daily = row.cells[3].innerText || '';
           const totalInt = row.cells[4].innerText || '';
           if (!amount && !date) return;
-          payRows.push(`${amount} | ${date} | Days:${days} | Daily:${daily} | Int:${totalInt}`);
+          payRows.push([amount, date, days, daily, totalInt]);
         });
-        if (payRows.length === 0) addTextLines(['No payments entered.']); else addTextLines(payRows);
+        if (payRows.length === 0) {
+          doc.text('No payments entered.', left, y);
+        } else {
+          addPdfTable(doc, ['Amount', 'Date', 'Days', 'Daily', 'Total Int.'], payRows, y, [50, 70, 32, 36, 38]);
+        }
 
         if (y + 40 > pageHeight - 40) { doc.addPage(); y = 40; }
         doc.setFontSize(11);
@@ -519,5 +704,6 @@
       });
     }
   </script>
+</div>
 </body>
 </html>
