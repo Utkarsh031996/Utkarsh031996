@@ -256,7 +256,7 @@
   <div class="top-row">
     <div>
       <label><strong>Name</strong></label>
-      <input id="personName" type="text" placeholder="Enter name (single person for this calculation)">
+      <input id="personName" type="text" value="Utkarsh Agrawal" placeholder="Enter name (single person for this calculation)">
     </div>
 
     <div>
@@ -449,6 +449,15 @@
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       document.getElementById('calcDate').value = `${yyyy}-${mm}-${dd}`;
+
+      const personNameInput = document.getElementById('personName');
+      if (!personNameInput.value.trim()) {
+        personNameInput.value = 'Utkarsh Agrawal';
+      }
+      const summaryName = document.getElementById('sumName');
+      if (summaryName) {
+        summaryName.innerText = personNameInput.value.trim() || '-';
+      }
     })();
 
     // Ensure a row has at least `count` cells (create if missing)
