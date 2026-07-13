@@ -4,6 +4,15 @@
   <meta charset="utf-8" />
   <title>Interest Calculator with Payments (Fixed)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Interest Calculator" />
+  <meta name="application-name" content="Interest Calculator" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon-192.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
@@ -499,6 +508,15 @@
         row.innerHTML = `<td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
                          <td><input type="date"></td><td></td><td></td><td></td>`;
       }
+    }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.error('Service worker registration failed:', err);
+        });
+      });
     }
   </script>
 </body>
