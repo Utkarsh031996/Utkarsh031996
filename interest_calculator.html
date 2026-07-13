@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Interest Calculator with Payments (Fixed)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; color:#222; }
+    h2, h3 { margin: 8px 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size:14px; }
+    th { background:#f6f6f6; }
+    input[type="text"], input[type="number"], input[type="date"] {
+      width: 100%; box-sizing: border-box; padding:6px; font-size:14px;
+    }
+    .controls { margin-top: 12px; }
+    button { margin:6px 6px 6px 0; padding:8px 12px; font-size:14px; cursor:pointer; }
+    #summary { margin-top:12px; padding:10px; background:#fafafa; border:1px solid #eee; }
+    .small { font-size:13px; color:#555; }
+    .top-row { display:flex; gap:12px; align-items:center; margin-bottom:8px; }
+    .top-row > * { flex: 1; }
+    .radio-group { display:flex; gap:12px; align-items:center; }
+    .note { font-size:12px; color:#666; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <h2>Interest Calculator</h2>
+
+  <div class="top-row">
+    <div>
+      <label><strong>Name</strong></label>
+      <input id="personName" type="text" placeholder="Enter name (single person for this calculation)">
+    </div>
+
+    <div>
+      <label><strong>Calculation Reference</strong></label>
+      <div class="radio-group">
+        <label><input type="radio" name="calcDateMode" value="today" checked> Use Today</label>
+        <label><input type="radio" name="calcDateMode" value="specific"> Use Specific Date</label>
+      </div>
+      <div style="margin-top:6px;">
+        <input id="calcDate" type="date">
+      </div>
+      <div class="note">If "Use Today" is selected the date picker is ignored. The date picker defaults to today.</div>
+    </div>
+  </div>
+
+  <p class="small">Editable generic sheet — enter amounts and dates for the selected person. Main amounts use a 40-day reduction rule; received payments do not. Click <strong>Calculate</strong> to compute interest and remaining balance. Export options available.</p>
+
+  <h3>Main Amounts</h3>
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Amount</th>
+        <th>Date</th>
+        <th>Days (ref - amount date)</th>
+        <th>Adjusted Days (-40)</th>
+        <th>Daily Interest (0.05%)</th>
+        <th>Total Interest</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+        <td><input type="date"></td>
+        <td></td><td></td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="controls">
+    <button onclick="addRow('dataTable')">Add Main Row</button>
+    <button onclick="removeEmptyRows('dataTable')">Remove Empty Main Rows</button>
+  </div>
+
+  <h3>Received Payments</h3>
+  <table id="paymentTable">
+    <thead>
+      <tr>
+        <th>Amount</th>
+        <th>Date</th>
+        <th>Days (ref - payment date)</th>
+        <th>Daily Interest (0.05%)</th>
+        <th>Total Interest</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+        <td><input type="date"></td>
+        <td></td><td></td><td></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="controls">
+    <button onclick="addRow('paymentTable')">Add Payment Row</button>
+    <button onclick="removeEmptyRows('paymentTable')">Remove Empty Payment Rows</button>
+  </div>
+
+  <div class="controls">
+    <button onclick="calculate()">Calculate</button>
+    <button onclick="downloadExcel()">Download Results Excel</button>
+    <button onclick="downloadRawExcel()">Download Raw Excel</button>
+    <button onclick="downloadPDF()">Download PDF</button>
+    <button onclick="importExcel()">Import Excel (Raw Data)</button>
+    <input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none" />
+  </div>
+
+  <h3>Summary</h3>
+  <div id="summary">
+    <strong>Name:</strong> <span id="sumName">-</span> &nbsp; | &nbsp;
+    <strong>Total Principal:</strong> 0.00 &nbsp; | &nbsp;
+    <strong>Total Interest (Main):</strong> 0.00 &nbsp; | &nbsp;
+    <strong>Total Received Payments:</strong> 0.00 &nbsp; | &nbsp;
+    <strong>Total Interest (Payments):</strong> 0.00 &nbsp; | &nbsp;
+    <strong>Remaining Balance:</strong> 0.00
+  </div>
+
+  <script>
+    // Initialize calcDate input to today
+    (function init() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      document.getElementById('calcDate').value = `${yyyy}-${mm}-${dd}`;
+    })();
+
+    // Ensure a row has at least `count` cells (create if missing)
+    function ensureCells(row, count) {
+      while (row.cells.length < count) {
+        row.insertCell();
+      }
+    }
+
+    function addRow(tableId) {
+      const tbody = document.getElementById(tableId).tBodies[0];
+      const row = tbody.insertRow();
+      if (tableId === 'dataTable') {
+        row.innerHTML = `
+          <td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+          <td><input type="date"></td>
+          <td></td><td></td><td></td><td></td>
+        `;
+      } else {
+        row.innerHTML = `
+          <td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+          <td><input type="date"></td>
+          <td></td><td></td><td></td>
+        `;
+      }
+    }
+
+    function removeEmptyRows(tableId) {
+      const tbody = document.getElementById(tableId).tBodies[0];
+      const rows = Array.from(tbody.rows);
+      rows.forEach(r => {
+        const amountInput = r.cells[0].querySelector('input');
+        const dateInput = r.cells[1].querySelector('input');
+        const amount = amountInput ? amountInput.value.trim() : '';
+        const date = dateInput ? dateInput.value.trim() : '';
+        if (!amount && !date) tbody.removeChild(r);
+      });
+    }
+
+    function getReferenceDate() {
+      const mode = document.querySelector('input[name="calcDateMode"]:checked').value;
+      if (mode === 'today') {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      }
+      const val = document.getElementById('calcDate').value;
+      return val ? new Date(val + 'T00:00:00') : new Date();
+    }
+
+    function daysBetween(refDate, fromDate) {
+      const r = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+      const f = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+      const diff = r - f;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      return Math.max(days, 0);
+    }
+
+    function calculate() {
+      const refDate = getReferenceDate();
+      const name = document.getElementById('personName').value.trim() || '-';
+      document.getElementById('sumName').innerText = name;
+
+      let totalPrincipal = 0;
+      let totalInterestMain = 0;
+      let totalPayments = 0;
+      let totalInterestPayments = 0;
+
+      // Main amounts
+      document.querySelectorAll('#dataTable tbody tr').forEach(row => {
+        // Ensure row has 6 cells (Amount, Date, Days, Adjusted, Daily, TotalInterest)
+        ensureCells(row, 6);
+
+        const amountInput = row.cells[0].querySelector('input');
+        const dateInput = row.cells[1].querySelector('input');
+        const amount = amountInput ? parseFloat(amountInput.value) || 0 : 0;
+        const dateStr = dateInput ? dateInput.value : '';
+
+        // Clear cells if no data
+        if (!amount || !dateStr) {
+          if (row.cells[2]) row.cells[2].innerText = '';
+          if (row.cells[3]) row.cells[3].innerText = '';
+          if (row.cells[4]) row.cells[4].innerText = '';
+          if (row.cells[5]) row.cells[5].innerText = '';
+          return;
+        }
+
+        const date = new Date(dateStr + 'T00:00:00');
+        const diffDays = daysBetween(refDate, date);
+        const adjustedDays = Math.max(diffDays - 40, 0);
+        const dailyInterest = amount * 0.0005;
+        const totalInt = dailyInterest * adjustedDays;
+
+        if (row.cells[2]) row.cells[2].innerText = diffDays;
+        if (row.cells[3]) row.cells[3].innerText = adjustedDays;
+        if (row.cells[4]) row.cells[4].innerText = dailyInterest.toFixed(2);
+        if (row.cells[5]) row.cells[5].innerText = totalInt.toFixed(2);
+
+        totalPrincipal += amount;
+        totalInterestMain += totalInt;
+      });
+
+      // Payments
+      document.querySelectorAll('#paymentTable tbody tr').forEach(row => {
+        // Ensure row has 5 cells (Amount, Date, Days, Daily, TotalInterest)
+        ensureCells(row, 5);
+
+        const amountInput = row.cells[0].querySelector('input');
+        const dateInput = row.cells[1].querySelector('input');
+        const amount = amountInput ? parseFloat(amountInput.value) || 0 : 0;
+        const dateStr = dateInput ? dateInput.value : '';
+
+        if (!amount || !dateStr) {
+          if (row.cells[2]) row.cells[2].innerText = '';
+          if (row.cells[3]) row.cells[3].innerText = '';
+          if (row.cells[4]) row.cells[4].innerText = '';
+          return;
+        }
+
+        const date = new Date(dateStr + 'T00:00:00');
+        const diffDays = daysBetween(refDate, date);
+        const dailyInterest = amount * 0.0005;
+        const totalInt = dailyInterest * diffDays;
+
+        if (row.cells[2]) row.cells[2].innerText = diffDays;
+        if (row.cells[3]) row.cells[3].innerText = dailyInterest.toFixed(2);
+        if (row.cells[4]) row.cells[4].innerText = totalInt.toFixed(2);
+
+        totalPayments += amount;
+        totalInterestPayments += totalInt;
+      });
+
+      const remaining = (totalPrincipal + totalInterestMain) - (totalPayments + totalInterestPayments);
+
+      const summaryEl = document.getElementById('summary');
+      // Ensure the summary contains a stable element with id 'sumName'
+      summaryEl.innerHTML = `
+        <strong>Name:</strong> <span id="sumName">${name}</span> &nbsp; | &nbsp;
+        <strong>Total Principal:</strong> ${totalPrincipal.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Total Interest (Main):</strong> ${totalInterestMain.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Total Received Payments:</strong> ${totalPayments.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Total Interest (Payments):</strong> ${totalInterestPayments.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Remaining Balance:</strong> ${remaining.toFixed(2)}
+      `;
+    }
+
+    // Excel / PDF export and import functions (unchanged except they call calculate() first)
+    function downloadExcel() {
+      calculate();
+      const wb = XLSX.utils.book_new();
+
+      const mainRows = [];
+      document.querySelectorAll('#dataTable tbody tr').forEach(row => {
+        const amount = row.cells[0].querySelector('input').value || '';
+        const date = row.cells[1].querySelector('input').value || '';
+        const days = row.cells[2].innerText || '';
+        const adj = row.cells[3].innerText || '';
+        const daily = row.cells[4].innerText || '';
+        const totalInt = row.cells[5].innerText || '';
+        if (!amount && !date) return;
+        mainRows.push({
+          Amount: amount,
+          Date: date,
+          DaysTillRef: days,
+          AdjustedDaysMinus40: adj,
+          DailyInterest_0_05pct: daily,
+          TotalInterest: totalInt
+        });
+      });
+      const wsMain = XLSX.utils.json_to_sheet(mainRows);
+      XLSX.utils.book_append_sheet(wb, wsMain, 'MainAmounts');
+
+      const payRows = [];
+      document.querySelectorAll('#paymentTable tbody tr').forEach(row => {
+        const amount = row.cells[0].querySelector('input').value || '';
+        const date = row.cells[1].querySelector('input').value || '';
+        const days = row.cells[2].innerText || '';
+        const daily = row.cells[3].innerText || '';
+        const totalInt = row.cells[4].innerText || '';
+        if (!amount && !date) return;
+        payRows.push({
+          Amount: amount,
+          Date: date,
+          DaysTillRef: days,
+          DailyInterest_0_05pct: daily,
+          TotalInterest: totalInt
+        });
+      });
+      const wsPay = XLSX.utils.json_to_sheet(payRows);
+      XLSX.utils.book_append_sheet(wb, wsPay, 'Payments');
+
+      const name = document.getElementById('personName').value.trim() || '-';
+      const summaryText = document.getElementById('summary').innerText;
+      const wsSummary = XLSX.utils.aoa_to_sheet([['Name', name], ['Reference Date', getReferenceDate().toISOString().slice(0,10)], [], [summaryText]]);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      XLSX.writeFile(wb, 'InterestResults.xlsx');
+    }
+
+    function downloadRawExcel() {
+      const wb = XLSX.utils.book_new();
+      const rawMain = [];
+      document.querySelectorAll('#dataTable tbody tr').forEach(row => {
+        const amount = row.cells[0].querySelector('input').value || '';
+        const date = row.cells[1].querySelector('input').value || '';
+        if (!amount && !date) return;
+        rawMain.push({ Amount: amount, Date: date });
+      });
+      const wsMain = XLSX.utils.json_to_sheet(rawMain);
+      XLSX.utils.book_append_sheet(wb, wsMain, 'RawMainAmounts');
+
+      const rawPay = [];
+      document.querySelectorAll('#paymentTable tbody tr').forEach(row => {
+        const amount = row.cells[0].querySelector('input').value || '';
+        const date = row.cells[1].querySelector('input').value || '';
+        if (!amount && !date) return;
+        rawPay.push({ Amount: amount, Date: date });
+      });
+      const wsPay = XLSX.utils.json_to_sheet(rawPay);
+      XLSX.utils.book_append_sheet(wb, wsPay, 'RawPayments');
+
+      XLSX.writeFile(wb, 'RawData.xlsx');
+    }
+
+    async function downloadPDF() {
+      try {
+        calculate(); // ensure latest values
+
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          alert('PDF library not loaded. Check your internet connection.');
+          return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const left = 40;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let y = 40;
+        const lineHeight = 14;
+
+        doc.setFontSize(14);
+        doc.text('Interest Calculation Results', left, y);
+        y += 20;
+        doc.setFontSize(11);
+
+        const summaryText = document.getElementById('summary').innerText;
+        const summaryLines = doc.splitTextToSize(summaryText, pageWidth - left - 40);
+        doc.text(summaryLines, left, y);
+        y += (summaryLines.length * lineHeight) + 10;
+
+        function addTextLines(lines) {
+          lines.forEach(line => {
+            if (y + lineHeight > pageHeight - 40) {
+              doc.addPage();
+              y = 40;
+            }
+            doc.text(line, left, y);
+            y += lineHeight;
+          });
+        }
+
+        doc.setFontSize(12);
+        addTextLines(['Main Amounts:']);
+        doc.setFontSize(10);
+        const mainRows = [];
+        document.querySelectorAll('#dataTable tbody tr').forEach(row => {
+          const amount = row.cells[0].querySelector('input').value || '';
+          const date = row.cells[1].querySelector('input').value || '';
+          const days = row.cells[2].innerText || '';
+          const adj = row.cells[3].innerText || '';
+          const daily = row.cells[4].innerText || '';
+          const totalInt = row.cells[5].innerText || '';
+          if (!amount && !date) return;
+          mainRows.push(`${amount} | ${date} | Days:${days} | Adj:${adj} | Daily:${daily} | Int:${totalInt}`);
+        });
+        if (mainRows.length === 0) addTextLines(['No main amounts entered.']); else addTextLines(mainRows);
+
+        doc.setFontSize(12);
+        addTextLines(['', 'Received Payments:']);
+        doc.setFontSize(10);
+        const payRows = [];
+        document.querySelectorAll('#paymentTable tbody tr').forEach(row => {
+          const amount = row.cells[0].querySelector('input').value || '';
+          const date = row.cells[1].querySelector('input').value || '';
+          const days = row.cells[2].innerText || '';
+          const daily = row.cells[3].innerText || '';
+          const totalInt = row.cells[4].innerText || '';
+          if (!amount && !date) return;
+          payRows.push(`${amount} | ${date} | Days:${days} | Daily:${daily} | Int:${totalInt}`);
+        });
+        if (payRows.length === 0) addTextLines(['No payments entered.']); else addTextLines(payRows);
+
+        if (y + 40 > pageHeight - 40) { doc.addPage(); y = 40; }
+        doc.setFontSize(11);
+        addTextLines(['', 'Generated Summary:']);
+        const finalSummary = document.getElementById('summary').innerText;
+        const finalLines = doc.splitTextToSize(finalSummary, pageWidth - left - 40);
+        addTextLines(finalLines);
+
+        const name = (document.getElementById('personName').value || 'InterestResults').replace(/\s+/g, '_');
+        doc.save(`${name}_InterestResults.pdf`);
+      } catch (err) {
+        console.error('PDF generation error:', err);
+        alert('An error occurred while generating the PDF. See console for details.');
+      }
+    }
+
+    function importExcel() {
+      const fileInput = document.getElementById('fileInput');
+      fileInput.value = '';
+      fileInput.click();
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const data = evt.target.result;
+          const wb = XLSX.read(data, { type: 'binary' });
+          const sheetNames = wb.SheetNames;
+
+          clearTable('dataTable');
+          clearTable('paymentTable');
+
+          sheetNames.forEach(name => {
+            const ws = wb.Sheets[name];
+            const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            if (name.toLowerCase().includes('main')) {
+              json.forEach(r => {
+                addRow('dataTable');
+                const last = document.querySelectorAll('#dataTable tbody tr');
+                const row = last[last.length - 1];
+                row.cells[0].querySelector('input').value = r.Amount || r.amount || '';
+                row.cells[1].querySelector('input').value = r.Date || r.date || '';
+              });
+            } else if (name.toLowerCase().includes('pay')) {
+              json.forEach(r => {
+                addRow('paymentTable');
+                const last = document.querySelectorAll('#paymentTable tbody tr');
+                const row = last[last.length - 1];
+                row.cells[0].querySelector('input').value = r.Amount || r.amount || '';
+                row.cells[1].querySelector('input').value = r.Date || r.date || '';
+              });
+            } else {
+              json.forEach(r => {
+                if (r.Amount && r.Date) {
+                  addRow('dataTable');
+                  const last = document.querySelectorAll('#dataTable tbody tr');
+                  const row = last[last.length - 1];
+                  row.cells[0].querySelector('input').value = r.Amount || r.amount || '';
+                  row.cells[1].querySelector('input').value = r.Date || r.date || '';
+                }
+              });
+            }
+          });
+
+          removeEmptyRows('dataTable');
+          removeEmptyRows('paymentTable');
+          calculate();
+        };
+        reader.readAsBinaryString(file);
+      };
+    }
+
+    function clearTable(tableId) {
+      const tbody = document.getElementById(tableId).tBodies[0];
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+      const row = tbody.insertRow();
+      if (tableId === 'dataTable') {
+        row.innerHTML = `<td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+                         <td><input type="date"></td><td></td><td></td><td></td><td></td>`;
+      } else {
+        row.innerHTML = `<td><input type="number" placeholder="Amount" min="0" step="0.01"></td>
+                         <td><input type="date"></td><td></td><td></td><td></td>`;
+      }
+    }
+  </script>
+</body>
+</html>
