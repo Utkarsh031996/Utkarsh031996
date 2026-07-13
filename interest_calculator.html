@@ -182,6 +182,26 @@
       border-radius: 12px;
       border: 1px solid var(--border);
     }
+    .profile-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 14px;
+    }
+    .profile-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--primary);
+      background: #dbeafe;
+    }
+    .profile-meta strong { display:block; font-size: 15px; color: var(--primary-dark); }
+    .profile-meta span { font-size: 13px; color: var(--muted); }
     .radio-group { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
     .note { font-size:12px; color:#64748b; margin-top:6px; }
 
@@ -195,8 +215,8 @@
         width: 34%;
       }
       th:nth-child(2), td:nth-child(2) {
-        min-width: 156px;
-        width: 30%;
+        min-width: 182px;
+        width: 36%;
       }
       th:nth-child(3), td:nth-child(3),
       th:nth-child(4), td:nth-child(4),
@@ -222,6 +242,14 @@
     <div class="hero-actions">
       <button id="installButton" class="install-btn" onclick="promptInstall()">Install App</button>
       <div id="installStatus" class="install-status">Add this app to your home screen for faster access.</div>
+    </div>
+  </div>
+
+  <div class="profile-card">
+    <img class="profile-avatar" src="https://ui-avatars.com/api/?name=Utkarsh+User&background=2563eb&color=fff&rounded=true" alt="Profile photo" />
+    <div class="profile-meta">
+      <strong>Welcome, Utkarsh</strong>
+      <span>Simple interest tracking made easier on mobile</span>
     </div>
   </div>
 
@@ -363,15 +391,21 @@
       updateInstallStatus('App installed successfully.');
     });
 
-    function addPdfTable(doc, headers, rows, startY, columnWidths) {
+    function addPdfTable(doc, headers, rows, startY, columnWidths, totalsRow) {
       const left = 30;
       const rowHeight = 14;
       const pageHeight = doc.internal.pageSize.getHeight();
       let y = startY;
-      const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
 
-      function drawRow(values, isHeader) {
-        if (y + rowHeight > pageHeight - 24) {
+      function drawRow(values, isHeader, isTotal) {
+        const rowLines = values.map((value, index) => {
+          const width = columnWidths[index];
+          return String(value ?? '').split(/\n/).map(line => line.trim());
+        });
+
+        const maxLines = Math.max(1, ...rowLines.map(lines => lines.length));
+        const neededHeight = rowHeight * maxLines;
+        if (y + neededHeight > pageHeight - 24) {
           doc.addPage();
           y = 40;
         }
@@ -382,23 +416,29 @@
           if (isHeader) {
             doc.setFillColor(37, 99, 235);
             doc.setTextColor(255, 255, 255);
-            doc.rect(x, y, width, rowHeight, 'F');
+            doc.rect(x, y, width, neededHeight, 'F');
+          } else if (isTotal) {
+            doc.setFillColor(239, 246, 255);
+            doc.setTextColor(15, 23, 42);
+            doc.rect(x, y, width, neededHeight, 'F');
+            doc.rect(x, y, width, neededHeight, 'S');
           } else {
             doc.setFillColor(255, 255, 255);
             doc.setTextColor(0, 0, 0);
-            doc.rect(x, y, width, rowHeight, 'S');
+            doc.rect(x, y, width, neededHeight, 'S');
           }
 
           const text = String(value ?? '');
           const lines = doc.splitTextToSize(text, width - 6);
-          doc.text(lines, x + 3, y + 8);
+          doc.text(lines, x + 3, y + 6);
           x += width;
         });
-        y += rowHeight;
+        y += neededHeight;
       }
 
       drawRow(headers, true);
       rows.forEach(row => drawRow(row, false));
+      if (totalsRow) drawRow(totalsRow, false, true);
       return y;
     }
 
@@ -540,17 +580,21 @@
         totalInterestPayments += totalInt;
       });
 
-      const remaining = (totalPrincipal + totalInterestMain) - (totalPayments + totalInterestPayments);
+      const remainingPrincipal = totalPrincipal - totalPayments;
+      const remainingInterest = totalInterestMain - totalInterestPayments;
+      const remainingBalance = remainingPrincipal + remainingInterest;
 
       const summaryEl = document.getElementById('summary');
       // Ensure the summary contains a stable element with id 'sumName'
       summaryEl.innerHTML = `
         <strong>Name:</strong> <span id="sumName">${name}</span> &nbsp; | &nbsp;
         <strong>Total Principal:</strong> ${totalPrincipal.toFixed(2)} &nbsp; | &nbsp;
-        <strong>Total Interest (Main):</strong> ${totalInterestMain.toFixed(2)} &nbsp; | &nbsp;
-        <strong>Total Received Payments:</strong> ${totalPayments.toFixed(2)} &nbsp; | &nbsp;
-        <strong>Total Interest (Payments):</strong> ${totalInterestPayments.toFixed(2)} &nbsp; | &nbsp;
-        <strong>Remaining Balance:</strong> ${remaining.toFixed(2)}
+        <strong>Total Interest:</strong> ${totalInterestMain.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Total Payments:</strong> ${totalPayments.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Payment Interest:</strong> ${totalInterestPayments.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Remaining Principal:</strong> ${remainingPrincipal.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Remaining Interest:</strong> ${remainingInterest.toFixed(2)} &nbsp; | &nbsp;
+        <strong>Remaining Balance:</strong> ${remainingBalance.toFixed(2)}
       `;
     }
 
@@ -649,9 +693,17 @@
         let y = 40;
         const lineHeight = 14;
 
-        doc.setFontSize(14);
+        doc.setFontSize(16);
+        doc.setTextColor(37, 99, 235);
         doc.text('Interest Calculation Results', left, y);
-        y += 20;
+        y += 18;
+        doc.setDrawColor(37, 99, 235);
+        doc.line(left, y, pageWidth - left - 20, y);
+        y += 12;
+        doc.setFontSize(12);
+        doc.setTextColor(15, 23, 42);
+        doc.text('Utkarsh', left, y);
+        y += 18;
         doc.setFontSize(11);
 
         const summaryText = document.getElementById('summary').innerText;
@@ -689,7 +741,9 @@
           doc.text('No main amounts entered.', left, y);
           y += 16;
         } else {
-          y = addPdfTable(doc, ['Amount', 'Date', 'Days', 'Adj. Days', 'Daily', 'Total Int.'], mainRows, y, [42, 62, 30, 30, 36, 38]);
+          const mainTotalAmount = mainRows.reduce((sum, row) => sum + (parseFloat(row[0]) || 0), 0);
+          const mainTotalInterest = mainRows.reduce((sum, row) => sum + (parseFloat(row[5]) || 0), 0);
+          y = addPdfTable(doc, ['Amount', 'Date', 'Days', 'Adj. Days', 'Daily', 'Total Int.'], mainRows, y, [42, 62, 30, 30, 36, 38], ['Total', mainTotalAmount.toFixed(2), '', '', '', mainTotalInterest.toFixed(2)]);
         }
 
         doc.setFontSize(12);
@@ -709,8 +763,33 @@
         if (payRows.length === 0) {
           doc.text('No payments entered.', left, y);
         } else {
-          addPdfTable(doc, ['Amount', 'Date', 'Days', 'Daily', 'Total Int.'], payRows, y, [50, 70, 32, 36, 38]);
+          const payTotalAmount = payRows.reduce((sum, row) => sum + (parseFloat(row[0]) || 0), 0);
+          const payTotalInterest = payRows.reduce((sum, row) => sum + (parseFloat(row[4]) || 0), 0);
+          addPdfTable(doc, ['Amount', 'Date', 'Days', 'Daily', 'Total Int.'], payRows, y, [50, 70, 32, 36, 38], ['Total', payTotalAmount.toFixed(2), '', '', payTotalInterest.toFixed(2)]);
         }
+
+        if (y + 40 > pageHeight - 40) { doc.addPage(); y = 40; }
+        doc.setFontSize(12);
+        doc.text('Summary Totals', left, y + 6);
+        y += 20;
+        doc.setFontSize(9);
+        const totalPrincipal = mainRows.reduce((sum, row) => sum + (parseFloat(row[0]) || 0), 0);
+        const totalInterestMain = mainRows.reduce((sum, row) => sum + (parseFloat(row[5]) || 0), 0);
+        const totalPayments = payRows.reduce((sum, row) => sum + (parseFloat(row[0]) || 0), 0);
+        const totalInterestPayments = payRows.reduce((sum, row) => sum + (parseFloat(row[4]) || 0), 0);
+        const remainingPrincipal = totalPrincipal - totalPayments;
+        const remainingInterest = totalInterestMain - totalInterestPayments;
+        const remainingBalance = remainingPrincipal + remainingInterest;
+        const summaryRows = [
+          ['Total Principal', totalPrincipal.toFixed(2)],
+          ['Total Interest', totalInterestMain.toFixed(2)],
+          ['Total Payments', totalPayments.toFixed(2)],
+          ['Payment Interest', totalInterestPayments.toFixed(2)],
+          ['Remaining Principal', remainingPrincipal.toFixed(2)],
+          ['Remaining Interest', remainingInterest.toFixed(2)],
+          ['Remaining Balance', remainingBalance.toFixed(2)]
+        ];
+        addPdfTable(doc, ['Item', 'Value'], summaryRows, y, [140, 70], null);
 
         if (y + 40 > pageHeight - 40) { doc.addPage(); y = 40; }
         doc.setFontSize(11);
